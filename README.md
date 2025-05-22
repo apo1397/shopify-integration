@@ -15,6 +15,7 @@ This is a Shopify app designed to integrate with Shopify stores, allowing users 
 - Python 3.x
 - Flask
 - Shopify API credentials
+- [ngrok](https://ngrok.com/download) for public URL redirection
 
 ## Installation
 
@@ -50,7 +51,15 @@ This is a Shopify app designed to integrate with Shopify stores, allowing users 
     flask run
     ```
 
-2. Open your browser and navigate to `http://localhost:5000` to access the app.
+2. Expose your local server to the internet using ngrok:
+
+    ```bash
+    ngrok http 5000
+    ```
+
+   Copy the public URL provided by ngrok. This URL will be used for Shopify app redirections and webhook configurations.
+
+3. Open your browser and navigate to the ngrok public URL to access the app.
 
 ## Project Structure
 
