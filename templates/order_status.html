@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Status - {{ shop_url }}</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 20px; background-color: #f4f6f8; color: #333; }
+        .container { max-width: 800px; margin: auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; }
+        a { color: #5c6ac4; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .order-details, .shipping-details, .line-items-details { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
+        .order-details:last-child, .shipping-details:last-child, .line-items-details:last-child { border-bottom: none; }
+        .order-details p, .shipping-details p, .line-items-details li { margin: 5px 0; }
+        .status-badge { padding: 5px 10px; border-radius: 4px; color: white; font-weight: bold; display: inline-block; margin-left: 5px; }
+        /* Add more specific status styling as needed */
+        .status-paid { background-color: #28a745; } /* Green for PAID */
+        .status-pending { background-color: #ffc107; color: #333; } /* Yellow for PENDING */
+        .status-fulfilled { background-color: #17a2b8; } /* Teal for FULFILLED */
+        .status-unfulfilled { background-color: #fd7e14; } /* Orange for UNFULFILLED */
+        .status-partially_fulfilled { background-color: #6f42c1; } /* Purple for PARTIALLY_FULFILLED */
+
+        .back-link { display: inline-block; margin-bottom: 20px; }
+        .line-items-list { list-style: none; padding-left: 0; }
+        .line-items-list li { padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+        .line-items-list li:last-child { border-bottom: none; }
+        .fulfillment-details { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
+        .fulfillment-details:last-child { border-bottom: none; }
+        .fulfillment-details h3 { margin-top: 0; }
+        .tracking-info p { margin: 3px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('product_search_page') }}" class="back-link">&larr; Back to Products</a>
+        <h1>Order Status</h1>
+
+        {% if order_data %} <!-- Changed from draft_order to order_data -->
+            <div class="order-details">
+                <h2>Order: {{ order_data.name }}</h2>
+                <p><strong>ID:</strong> {{ order_data.id }}</p>
+                <p><strong>Legacy ID:</strong> {{ order_data.legacyResourceId }}</p>
+                <p><strong>Created At:</strong> {{ order_data.createdAt }}</p>
+                <p><strong>Email:</strong> {{ order_data.email }}</p>
+                <p><strong>Financial Status:</strong> 
+                    <span class="status-badge status-{{ order_data.displayFinancialStatus.lower() if order_data.displayFinancialStatus else 'unknown' }}">
+                        {{ order_data.displayFinancialStatus or 'N/A' }}
+                    </span>
+                </p>
+                <p><strong>Fulfillment Status:</strong> 
+                    <span class="status-badge status-{{ order_data.displayFulfillmentStatus.lower().replace('_', '') if order_data.displayFulfillmentStatus else 'unknown' }}">
+                        {{ order_data.displayFulfillmentStatus or 'N/A' }}
+                    </span>
+                </p>
+                <p><strong>Total Price:</strong> {{ order_data.totalPriceSet.presentmentMoney.amount }} {{ order_data.totalPriceSet.presentmentMoney.currencyCode }}</p>
+                {% if order_data.note %}
+                    <p><strong>Note:</strong> {{ order_data.note }}</p>
+                {% endif %}
+                {% if shop_url and order_data.legacyResourceId %}
+                    <p><a href="https://admin.shopify.com/store/{{ shop_url.split('.')[0] }}/orders/{{ order_data.legacyResourceId }}" target="_blank">View Order in Shopify Admin</a></p>
+                {% endif %}
+            </div>
+
+            {% if order_data.shippingAddress %}
+            <div class="shipping-details">
+                <h2>Shipping To</h2>
+                <p>{{ order_data.shippingAddress.firstName }} {{ order_data.shippingAddress.lastName }}</p>
+                <p>{{ order_data.shippingAddress.address1 }}</p>
+                {% if order_data.shippingAddress.address2 %}<p>{{ order_data.shippingAddress.address2 }}</p>{% endif %}
+                <p>{{ order_data.shippingAddress.city }}, {{ order_data.shippingAddress.province }} {{ order_data.shippingAddress.zip }}</p>
+                <p>{{ order_data.shippingAddress.country }}</p> {# Assuming country is full name, not code here from order query #}
+                {% if order_data.shippingAddress.phone %}<p>Phone: {{ order_data.shippingAddress.phone }}</p>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if order_data.lineItems and order_data.lineItems.edges %}
+            <div class="line-items-details">
+                <h2>Items</h2>
+                <ul class="line-items-list">
+                    {% for edge in order_data.lineItems.edges %}
+                        <li>
+                            {{ edge.node.title }} {% if edge.node.variantTitle and edge.node.variantTitle != "Default Title" %}({{ edge.node.variantTitle }}){% endif %}
+                            - Quantity: {{ edge.node.quantity }}
+                            - Price Each: {{ "%.2f"|format(edge.node.originalUnitPriceSet.presentmentMoney.amount|float) }} {{ edge.node.originalUnitPriceSet.presentmentMoney.currencyCode }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+        {% else %}
+            <p>Could not load order details. Please try again or contact support.</p>
+        {% endif %}
+
+        {# Corrected Fulfillments Section #}
+        {% if order_data %}
+        <div class="fulfillment-section">
+            <h2>Fulfillments</h2>
+            {% if order_data.fulfillments and order_data.fulfillments|length > 0 %}
+                {% for fulfillment in order_data.fulfillments %}
+                <div class="fulfillment-details">
+                    <h3>Fulfillment ID: {{ fulfillment.id.split('/')[-1] }}</h3>
+                    <p><strong>Status:</strong>
+                        <span class="status-badge status-{{ fulfillment.displayStatus.lower().replace(' ', '_') if fulfillment.displayStatus else 'unknown' }}">
+                            {{ fulfillment.displayStatus or 'N/A' }}
+                        </span>
+                    </p>
+                    {% if fulfillment.deliveredAt %}
+                        <p><strong>Delivered At:</strong> {{ fulfillment.deliveredAt }}</p>
+                    {% endif %}
+
+                    {% if fulfillment.trackingInfo and fulfillment.trackingInfo|length > 0 %}
+                        <h4>Tracking Information:</h4>
+                        {% for tracking in fulfillment.trackingInfo %}
+                            <div class="tracking-info">
+                                <p><strong>Company:</strong> {{ tracking.company or 'N/A' }}</p>
+                                <p><strong>Number:</strong> {{ tracking.number or 'N/A' }}</p>
+                                {% if tracking.url %}
+                                    <p><strong>Link:</strong> <a href="{{ tracking.url.strip().strip('`') }}" target="_blank">Track Package</a></p>
+                                    <p>--------------------</p><br/>
+                                {% else %}
+                                    <p><strong>Link:</strong> Not available</p>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>No tracking information available for this fulfillment.</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <p>No fulfillment information available yet for this order.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

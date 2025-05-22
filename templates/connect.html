@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect Your Shopify Store</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f4f6f8; }
+        .container { background-color: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
+        input[type="text"] { padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; width: calc(100% - 22px); }
+        button { padding: 10px 20px; background-color: #5c6ac4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #4959a9; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Connect Your Shopify Store</h1>
+        <p>Enter your myshopify.com domain to get started.</p>
+        <form action="{{ url_for('install') }}" method="post">
+            <input type="text" name="shop" placeholder="your-store-name.myshopify.com" required>
+            <button type="submit">Connect</button>
+        </form>
+    </div>
+</body>
+</html>
