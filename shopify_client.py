@@ -183,6 +183,7 @@ def get_order_details(shop_url: str, access_token: str, order_gid: str):
         id
         name
         legacyResourceId
+        app
         email
         createdAt
         displayFinancialStatus

@@ -14,12 +14,30 @@
         .order-details:last-child, .shipping-details:last-child, .line-items-details:last-child { border-bottom: none; }
         .order-details p, .shipping-details p, .line-items-details li { margin: 5px 0; }
         .status-badge { padding: 5px 10px; border-radius: 4px; color: white; font-weight: bold; display: inline-block; margin-left: 5px; }
-        /* Add more specific status styling as needed */
-        .status-paid { background-color: #28a745; } /* Green for PAID */
-        .status-pending { background-color: #ffc107; color: #333; } /* Yellow for PENDING */
-        .status-fulfilled { background-color: #17a2b8; } /* Teal for FULFILLED */
-        .status-unfulfilled { background-color: #fd7e14; } /* Orange for UNFULFILLED */
-        .status-partially_fulfilled { background-color: #6f42c1; } /* Purple for PARTIALLY_FULFILLED */
+        /* Financial Statuses */
+        .status-paid { background-color: #28a745; } 
+        .status-pending { background-color: #ffc107; color: #333; } 
+        .status-refunded { background-color: #6c757d; } 
+        .status-partially_refunded { background-color: #17a2b8; }
+        .status-voided { background-color: #dc3545; }
+        .status-authorized { background-color: #007bff; }
+        /* Fulfillment Statuses */
+        .status-fulfilled { background-color: #17a2b8; } 
+        .status-unfulfilled { background-color: #fd7e14; } 
+        .status-partially_fulfilled { background-color: #6f42c1; } 
+        .status-restocked { background-color: #e83e8c; } /* Example for restocked items if applicable */
+        .status-scheduled { background-color: #17a2b8; } 
+        .status-on_hold { background-color: #ffc107; color: #333; }
+        /* General Order Statuses (derived or explicit) */
+        .status-cancelled { background-color: #dc3545; } 
+        /* Fulfillment specific display statuses */
+        .status-attempteddelivery { background-color: #fd7e14; } 
+        .status-delivered { background-color: #28a745; } 
+        .status-failure { background-color: #dc3545; } 
+        .status-labelprinted { background-color: #007bff; } /* Example */
+        .status-labelpurchased { background-color: #007bff; } /* Example */
+        .status-readyforpickup { background-color: #ffc107; color: #333; } /* Example */
+        .status-submitted { background-color: #6f42c1; } /* Example */
 
         .back-link { display: inline-block; margin-bottom: 20px; }
         .line-items-list { list-style: none; padding-left: 0; }
@@ -35,32 +53,84 @@
     <div class="container">
         <a href="{{ url_for('product_search_page') }}" class="back-link">&larr; Back to Products</a>
         <h1>Order Status</h1>
-
-        {% if order_data %} <!-- Changed from draft_order to order_data -->
-            <div class="order-details">
-                <h2>Order: {{ order_data.name }}</h2>
-                <p><strong>ID:</strong> {{ order_data.id }}</p>
-                <p><strong>Legacy ID:</strong> {{ order_data.legacyResourceId }}</p>
-                <p><strong>Created At:</strong> {{ order_data.createdAt }}</p>
-                <p><strong>Email:</strong> {{ order_data.email }}</p>
-                <p><strong>Financial Status:</strong> 
-                    <span class="status-badge status-{{ order_data.displayFinancialStatus.lower() if order_data.displayFinancialStatus else 'unknown' }}">
-                        {{ order_data.displayFinancialStatus or 'N/A' }}
+    {% if order_data %} 
+        <div class="order-details">
+            <h2>Order: {{ order_data.name }}</h2>
+            <p><strong>ID:</strong> {{ order_data.id }}</p>
+            <p><strong>Legacy ID:</strong> {{ order_data.legacyResourceId }}</p>
+            <p><strong>Created At:</strong> {{ order_data.createdAt }}</p>
+            <p><strong>Updated At:</strong> {{ order_data.updatedAt or 'N/A' }}</p> {# New Field #}
+            <p><strong>Email:</strong> {{ order_data.email }}</p>
+            <p><strong>Confirmed:</strong> {{ 'Yes' if order_data.confirmed else 'No' }}</p> {# New Field #}
+            <p><strong>Closed:</strong> {{ 'Yes' if order_data.closed else 'No' }}</p> {# New Field #}
+        
+            {% if order_data.app and order_data.app.name %}
+                <p><strong>Order Source App:</strong> {{ order_data.app.name }}</p> {# New Field - adjust based on actual app object structure #}
+            {% elif order_data.app and order_data.app.id %}
+                <p><strong>Order Source App ID:</strong> {{ order_data.app.id }}</p> {# New Field - adjust #}
+            {% endif %}
+        
+            {% if order_data.cancelledAt %}
+                <p><strong>Overall Status:</strong> 
+                    <span class="status-badge status-cancelled">
+                        CANCELLED
                     </span>
                 </p>
+                <p><strong>Cancelled At:</strong> {{ order_data.cancelledAt }}</p>
+                <!-- <p><strong>Cancellation Reason:</strong> {{ order_data.cancelReason or (order_data.cancellation.reason if order_data.cancellation else 'No reason provided') }}</p> {# Enhanced Cancellation Reason #} -->
+                {% if order_data.cancellation and order_data.cancellation.staffNote %}
+                    <p><strong>Cancellation Staff Note:</strong> {{ order_data.cancellation.staffNote }}</p>
+                {% endif %}
+            {% else %}
                 <p><strong>Fulfillment Status:</strong> 
-                    <span class="status-badge status-{{ order_data.displayFulfillmentStatus.lower().replace('_', '') if order_data.displayFulfillmentStatus else 'unknown' }}">
+                    <!-- <span class="status-badge status-{{ order_data.displayFulfillmentStatus.lower().replace('_', '') if order_data.displayFulfillmentStatus else 'unknown' }}"> -->
                         {{ order_data.displayFulfillmentStatus or 'N/A' }}
-                    </span>
+                    <!-- </span> -->
                 </p>
-                <p><strong>Total Price:</strong> {{ order_data.totalPriceSet.presentmentMoney.amount }} {{ order_data.totalPriceSet.presentmentMoney.currencyCode }}</p>
-                {% if order_data.note %}
-                    <p><strong>Note:</strong> {{ order_data.note }}</p>
-                {% endif %}
-                {% if shop_url and order_data.legacyResourceId %}
-                    <p><a href="https://admin.shopify.com/store/{{ shop_url.split('.')[0] }}/orders/{{ order_data.legacyResourceId }}" target="_blank">View Order in Shopify Admin</a></p>
-                {% endif %}
-            </div>
+            {% endif %}
+        
+            <p><strong>Financial Status:</strong> 
+                <span class="status-badge status-{{ order_data.displayFinancialStatus.lower() if order_data.displayFinancialStatus else 'unknown' }}">
+                    {{ order_data.displayFinancialStatus or 'N/A' }}
+                </span>
+            </p>
+            <p><strong>Total Price:</strong> {{ order_data.totalPriceSet.presentmentMoney.amount }} {{ order_data.totalPriceSet.presentmentMoney.currencyCode }}</p>
+            
+            {% if order_data.discountCode %}
+                <p><strong>Discount Code Applied:</strong> {{ order_data.discountCode }}</p> {# New Field #}
+            {% endif %}
+        
+            <!-- {% if order_data.discountApplications and order_data.discountApplications.edges %}
+                <div class="discount-applications-details">
+                    <h3>Discounts Applied:</h3>
+                    <ul>
+                        {% for dapp_edge in order_data.discountApplications.edges %}
+                            {% set dapp = dapp_edge.node %}
+                            <li>
+                                {{ dapp.title or 'Discount' }}: 
+                                {% if dapp.value.__typename == 'MoneyV2' %}
+                                    {{ "%.2f"|format(dapp.value.amount|float) }} {{ dapp.value.currencyCode }}
+                                {% elif dapp.value.__typename == 'PricingPercentageValue' %}
+                                    {{ dapp.value.percentage * 100 }}%
+                                {% endif %}
+                                (Method: {{ dapp.allocationMethod }}, Target: {{ dapp.targetSelection }} on {{ dapp.targetType }})
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %} -->
+        
+            {% if order_data.tags and order_data.tags|length > 0 %}
+                <p><strong>Tags:</strong> {{ order_data.tags|join(', ') }}</p> {# New Field #}
+            {% endif %}
+        
+            {% if order_data.note %}
+                <p><strong>Note:</strong> {{ order_data.note }}</p>
+            {% endif %}
+            {% if shop_url and order_data.legacyResourceId %}
+                <p><a href="https://admin.shopify.com/store/{{ shop_url.split('.')[0] }}/orders/{{ order_data.legacyResourceId }}" target="_blank">View Order in Shopify Admin</a></p>
+            {% endif %}
+        </div>
 
             {% if order_data.shippingAddress %}
             <div class="shipping-details">
@@ -102,16 +172,16 @@
                 <div class="fulfillment-details">
                     <h3>Fulfillment ID: {{ fulfillment.id.split('/')[-1] }}</h3>
                     <p><strong>Status:</strong>
-                        <span class="status-badge status-{{ fulfillment.displayStatus.lower().replace(' ', '_') if fulfillment.displayStatus else 'unknown' }}">
+                        <!-- <span class="status-badge status-{{ fulfillment.displayStatus.lower().replace(' ', '_') if fulfillment.displayStatus else 'unknown' }}"> -->
                             {{ fulfillment.displayStatus or 'N/A' }}
-                        </span>
+                        <!-- </span> -->
                     </p>
                     {% if fulfillment.deliveredAt %}
                         <p><strong>Delivered At:</strong> {{ fulfillment.deliveredAt }}</p>
                     {% endif %}
 
                     {% if fulfillment.trackingInfo and fulfillment.trackingInfo|length > 0 %}
-                        <h4>Tracking Information:</h4>
+                        <h4>Tracking Information</h4>
                         {% for tracking in fulfillment.trackingInfo %}
                             <div class="tracking-info">
                                 <p><strong>Company:</strong> {{ tracking.company or 'N/A' }}</p>

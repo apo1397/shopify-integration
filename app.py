@@ -31,6 +31,37 @@ SHOPIFY_SCOPES = "read_customers,write_customers,read_orders,write_orders,write_
 # Structure: { 'shop_domain.myshopify.com': 'access_token_value' }
 active_shops = {}
 
+# GraphQL query for customer search
+CUSTOMER_SEARCH_QUERY = """
+query searchCustomers($query: String!) {
+  customers(first: 10, query: $query) {
+    edges {
+      node {
+        id
+        firstName
+        lastName
+        email: defaultEmailAddress {
+          emailAddress
+        }
+        phone: defaultPhoneNumber {
+          phoneNumber
+        }
+        addresses(first: 5) {
+          address1
+          address2
+          city
+          zip
+          provinceCode
+          countryCodeV2
+          formatted
+          phone
+        }
+      }
+    }
+  }
+}
+"""
+
 @app.route('/')
 def index():
     logger.info("Accessing index route. Always redirecting to connect_store to simulate fresh flow.")
@@ -124,6 +155,104 @@ def oauth_callback():
     except requests.exceptions.RequestException as e:
         logger.error(f"Error during token exchange for {shop_url}: {e}", exc_info=True) # Added exc_info for traceback
         return f"Error during token exchange: {e}", 500
+
+
+def search_customers_by_name(shop_url: str, access_token: str, search_query: str) -> list:
+    """Searches for customers by name using the Shopify Admin API."""
+    headers = {
+        "X-Shopify-Access-Token": access_token,
+        "Content-Type": "application/json"
+    }
+    
+    # The search_query itself will be used, enclosed in double quotes
+    # Example: if search_query is "Apoorv", the variable 'query' will be "\"Apoorv\""
+    # This assumes your CUSTOMER_SEARCH_QUERY expects a simple string for the 'query' variable.
+    payload = {
+        'query': CUSTOMER_SEARCH_QUERY,
+        'variables': {'query': f'"{search_query}"'} # Use search_query directly, enclosed in quotes
+    }
+    
+    # Debugging: Log types of payload components
+    logger.debug(f"Type of CUSTOMER_SEARCH_QUERY: {type(CUSTOMER_SEARCH_QUERY)}")
+    # logger.debug(f"Type of query_filter: {type(query_filter)}") # query_filter removed
+    logger.debug(f"Type of payload['variables']: {type(payload['variables'])}")
+    logger.debug(f"Type of payload['variables']['query']: {type(payload['variables']['query'])}")
+    logger.debug(f"Payload before sending: {payload}")
+
+    api_url = f"https://{shop_url}/admin/api/{SHOPIFY_API_VERSION}/graphql.json"
+    logger.info(f"Searching for customers with query: {search_query} on {shop_url}")
+    try:
+        response = requests.post(api_url, json=payload, headers=headers)
+        logger.info(f"response from customer search: {response.json()}")
+        response.raise_for_status()
+        data = response.json().get('data', {})
+        customers_data = data.get('customers', {}).get('edges', [])
+        logger.info(f"Customer search response received. Number of edges: {len(customers_data)}")
+        return customers_data
+    except requests.exceptions.HTTPError as http_err:
+        logger.error(f"HTTP error searching customers: {http_err} - Response: {response.text}", exc_info=True)
+        return []
+    except requests.exceptions.RequestException as req_err:
+        logger.error(f"Request error searching customers: {req_err}", exc_info=True)
+        return []
+    except ValueError as json_err: # Includes JSONDecodeError
+        logger.error(f"JSON decoding error searching customers: {json_err}", exc_info=True)
+        return []
+    except Exception as e:
+        # This will catch the TypeError if it's still happening before the request is made
+        logger.error(f"An unexpected error occurred during customer search preparation or execution: {e}", exc_info=True)
+        return []
+
+@app.route('/customer-search', methods=['GET', 'POST'])
+def customer_search_page():
+    logger.info(f"Accessing customer_search_page. Method: {request.method}")
+    shop_url = session.get('shop_url')
+    access_token = session.get('access_token')
+
+    if not shop_url or not access_token:
+        logger.warning("User not authenticated or session expired. Redirecting to connect.")
+        return redirect(url_for('connect_store'))
+
+    customers = []
+    customer_search_term = ""
+
+    if request.method == 'POST':
+        customer_search_term = request.form.get('customer_search_query', '').strip()
+        logger.info(f"Customer search initiated for term: '{customer_search_term}' on shop: {shop_url}")
+        if customer_search_term:
+            customers_data = search_customers_by_name(shop_url, access_token, customer_search_term)
+            # Simplify customer data for template
+            for edge in customers_data:
+                node = edge.get('node', {})
+                # Extract email and phone safely
+                email_node = node.get('email')
+                email_address = email_node.get('emailAddress') if email_node else 'N/A'
+                
+                phone_node = node.get('phone')
+                phone_number = phone_node.get('phoneNumber') if phone_node else 'N/A'
+
+                customers.append({
+                    'id': node.get('id'),
+                    'firstName': node.get('firstName'),
+                    'lastName': node.get('lastName'),
+                    'email': email_address,
+                    'phone': phone_number,
+                    'addresses': node.get('addresses', [])
+                })
+        else:
+            logger.info("Empty customer search term provided.")
+
+    return render_template('products.html', 
+                           shop_url=shop_url, 
+                           customers=customers, 
+                           customer_search_term=customer_search_term,
+                           # Make sure to pass other variables needed by products.html
+                           products=session.get('current_products', []), 
+                           search_term=session.get('last_product_search', ''),
+                           cart_items=session.get('cart_items_display', []),
+                           total_cart_value=session.get('total_cart_value_display', 0.0),
+                           countries=session.get('countries_for_template', []))
+
 
 @app.route('/products', methods=['GET', 'POST'])
 def product_search_page():
@@ -401,38 +530,140 @@ def create_order(): # Renamed function
 
 # Renamed route and parameter for real orders
 @app.route('/order-status/<order_id_param>')
-def view_order_status(order_id_param: str): # Renamed function and parameter
-    logger.info(f"Accessing view_order_status for order ID param: {order_id_param}")
+def view_order_status(order_id_param):
+    logger.info(f"Accessing view_order_status for order_id_param: {order_id_param}")
     shop_url = session.get('shop_url')
     access_token = session.get('access_token')
-    
-    # Reconstruct the full GID for the API call for an Order
-    order_gid = f"gid://shopify/Order/{order_id_param}"
 
     if not shop_url or not access_token:
         logger.warning("User not authenticated or session expired. Redirecting to connect.")
         return redirect(url_for('connect_store'))
 
-    if not order_id_param: # Check the param itself, not the reconstructed GID
-        logger.warning("No order ID provided for status page.")
-        return redirect(url_for('product_search_page')) 
+    # Construct the full Order GID
+    # Example GID: "gid://shopify/Order/1234567890"
+    order_gid = f"gid://shopify/Order/{order_id_param}"
+    logger.info(f"Constructed Order GID: {order_gid}")
 
+    order_data = get_order_details(shop_url, access_token, order_gid) # Call the function within app.py
+
+    return render_template('order_status.html', order_data=order_data, shop_url=shop_url)
+
+def get_order_details(shop_url: str, access_token: str, order_gid: str):
+    """
+    Fetches details for a specific real order using GraphQL.
+    This function is defined within app.py and uses shopify_client.make_graphql_request.
+    """
+    logger.info(f"Fetching details for order GID: {order_gid} on shop: {shop_url} using app.py's get_order_details")
+    query = """
+    query getOrder($id: ID!) {
+      order(id: $id) {
+        id
+        name
+        legacyResourceId
+        email
+        createdAt
+        updatedAt
+        displayFinancialStatus
+        displayFulfillmentStatus
+        app { # Assuming app might have an 'id' or 'name' for display
+          id
+          name # Or 'name', depending on what's available
+        }
+        cancellation { # Assuming cancellation might have details
+            # reason
+            staffNote
+            # Add other relevant cancellation subfields if needed
+        }
+        cancelledAt 
+        cancelReason
+        confirmed
+        closed
+        # discountApplications(first: 5) { # Fetch first 5 discount applications
+        #     edges {
+        #         node {
+        #             allocationMethod
+        #             targetSelection
+        #             targetType
+        #             value {
+        #                 __typename
+        #                 ... on MoneyV2 {
+        #                     amount
+        #                     currencyCode
+        #                 }
+        #                 ... on PricingPercentageValue {
+        #                     percentage
+        #                 }
+        #             }
+        #             title # If available, or use 'description'
+        #         }
+        #     }
+        # }
+        discountCode
+        totalPriceSet {
+          presentmentMoney {
+            amount
+            currencyCode
+          }
+        }
+        lineItems(first: 10) {
+          edges {
+            node {
+              title
+              quantity
+              variantTitle
+              originalUnitPriceSet {
+                 presentmentMoney {
+                    amount
+                    currencyCode
+                }
+              }
+            }
+          }
+        }
+        shippingAddress {
+          firstName
+          lastName
+          address1
+          address2
+          city
+          zip
+          country
+          province
+          phone
+        }
+        note
+        tags
+        fulfillments(first: 5) { 
+          id
+          status
+          deliveredAt
+          displayStatus
+          trackingInfo { 
+            url
+            company
+            number
+          }
+        }
+      }
+    }
+    """
+    variables = {"id": order_gid}
     try:
-        # Use the new function for fetching real order details
-        order_data = shopify_client.get_order_details(shop_url, access_token, order_gid)
-        if order_data:
-            logger.info(f"Successfully fetched order details for {order_gid}: {order_data}")
-            # We'll reuse order_status.html but adapt it for real order data
-            return render_template('order_status.html', 
-                                   order_data=order_data, # Pass as order_data
-                                   shop_url=shop_url)
+        # Ensure this calls the make_graphql_request from the shopify_client module
+        response_data = shopify_client.make_graphql_request(shop_url, access_token, query, variables)
+        if response_data.get("data") and response_data["data"].get("order"):
+            order_data = response_data["data"]["order"]
+            logger.info(f"Successfully fetched order details for {order_gid} via app.py's get_order_details. Data: {order_data}") # Added log for the full response
+            return order_data
+        elif response_data.get("errors"):
+            logger.error(f"GraphQL errors fetching order {order_gid} via app.py: {response_data['errors']}")
+            return None
         else:
-            logger.error(f"Could not retrieve details for order GID {order_gid}.")
-            return f"Error: Could not retrieve details for order {order_gid}.", 404
-            
+            logger.warning(f"No order data found or unexpected response for {order_gid} via app.py. Response: {response_data}")
+            return None
     except Exception as e:
-        logger.error(f"Error fetching order details for {order_gid}: {e}", exc_info=True)
-        return f"An error occurred while fetching order status: {e}", 500
+        logger.error(f"Error fetching order {order_gid} via app.py: {e}", exc_info=True)
+        return None
 
 
 if __name__ == '__main__':
