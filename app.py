@@ -340,7 +340,6 @@ def product_search_page():
                 logger.info(f"Added to cart: Variant ID {variant_id}, Qty: {quantity}. Cart: {cart}")
             # After adding to cart, we might want to re-display the page, potentially with the same search results
             # For simplicity, we'll just re-render the template. If search_term was POSTed, it won't persist unless handled.
-            # A redirect to GET might be cleaner here to avoid form re-submission issues.
             # For now, let's keep it simple and re-render.
             search_term = request.form.get('previous_search_term', '') # Try to retain search term
 
@@ -396,6 +395,10 @@ def create_order(): # Renamed function
         "phone": request.form.get('phone')
     }
 
+    # Get tags from form and process them
+    tags_string = request.form.get('tags')
+    tags_list = [tag.strip() for tag in tags_string.split(',') if tag.strip()] if tags_string else []
+
     mandatory_fields = {
         "email": email,
         "firstName": shipping_address_input["firstName"],
@@ -434,6 +437,10 @@ def create_order(): # Renamed function
         "useCustomerDefaultAddress": False # We are providing a shipping address
         # financialStatus will be determined upon completion
     }
+
+    # Add tags to draft_order_input if available
+    if tags_list:
+        draft_order_input["tags"] = tags_list
 
     draft_order_create_mutation = """
     mutation draftOrderCreate($input: DraftOrderInput!) {

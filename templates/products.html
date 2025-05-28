@@ -112,7 +112,10 @@
                         <img src="{{ product.featuredImage_url }}" alt="{{ product.title }}">
                     {% endif %}
                     <h3>{{ product.title }}</h3>
-                    <!-- <p>{{ product.descriptionHtml|safe }}</p> -->
+                    {% if product.onlineStoreUrl %}
+                        <p><a href="{{ product.onlineStoreUrl }}" target="_blank">View on Store</a></p>
+                    {% endif %}
+                    <p>{{ product.descriptionHtml|safe }}</p>
                     {% if product.variants %}
                         <form method="POST" action="{{ url_for('product_search_page') }}" class="variants">
                              <input type="hidden" name="previous_search_term" value="{{ search_term or '' }}"> <!-- To retain search term -->
@@ -216,6 +219,10 @@
                         
                         <label for="phone">Phone (Optional):</label>
                         <input type="tel" id="phone" name="phone">
+
+                        <!-- New input field for Tags -->
+                        <label for="tags">Tags (comma-separated, optional):</label>
+                        <input type="text" id="tags" name="tags" placeholder="e.g., wholesale, new-customer">
                     </div>
                     <button type="submit" class="place-order-btn">Place $0 Value Order</button>
                 </form>

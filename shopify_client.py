@@ -90,6 +90,7 @@ def search_products(shop_url: str, access_token: str, search_query: str, num_pro
         if response_data.get("data") and response_data["data"].get("products"):
             products = response_data["data"]["products"]["edges"]
             logger.info(f"Found {len(products)} products for query '{search_query}' on {shop_url}")
+            logger.info(f"Products data: {products}")
             return products
         else:
             logger.warning(f"No products found or unexpected response structure for query '{search_query}' on {shop_url}. Response: {response_data}")
