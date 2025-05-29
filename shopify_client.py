@@ -44,14 +44,16 @@ def make_graphql_request(shop_url: str, access_token: str, query: str, variables
         logger.error(f"An unexpected error occurred in make_graphql_request for {shop_url}: {e}", exc_info=True) # Added
         raise # Re-raise the exception
 
-def search_products(shop_url: str, access_token: str, search_query: str, num_products: int = 10):
+def search_products(shop_url: str, access_token: str, search_query: str, num_products: int = 10, cursor: str = None):
     """
-    Searches for products in the Shopify store using GraphQL.
+    Searches for products in the Shopify store using GraphQL, with pagination support.
     """
-    logger.info(f"Searching products for shop: {shop_url} with query: '{search_query}'")
+    logger.info(f"Searching products for shop: {{shop_url}} with query: '{{search_query}}', cursor: {{cursor}}")
+    # Added cursor to the GraphQL query variables and products query arguments
+    # Added hasPreviousPage, startCursor, endCursor to pageInfo
     query = """
-    query searchProducts($searchQuery: String!, $numProducts: Int!) {
-      products(first: $numProducts, query: $searchQuery) {
+    query searchProducts($searchQuery: String!, $numProducts: Int!, $cursor: String) {
+      products(first: $numProducts, query: $searchQuery, after: $cursor) {
         edges {
           node {
             id
@@ -77,6 +79,9 @@ def search_products(shop_url: str, access_token: str, search_query: str, num_pro
         }
         pageInfo {
           hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
         }
       }
     }
@@ -85,19 +90,26 @@ def search_products(shop_url: str, access_token: str, search_query: str, num_pro
         "searchQuery": search_query,
         "numProducts": num_products
     }
+    if cursor:
+        variables["cursor"] = cursor
     try:
         response_data = make_graphql_request(shop_url, access_token, query, variables)
         if response_data.get("data") and response_data["data"].get("products"):
-            products = response_data["data"]["products"]["edges"]
-            logger.info(f"Found {len(products)} products for query '{search_query}' on {shop_url}")
-            logger.info(f"Products data: {products}")
-            return products
+            products_data = response_data["data"]["products"]
+            products = products_data["edges"]
+            page_info = products_data["pageInfo"]
+            logger.info(f"Found {{len(products)}} products for query '{{search_query}}' on {{shop_url}}")
+
+            # Return a dictionary containing both products and pageInfo
+            return {"products": products, "pageInfo": page_info}
         else:
-            logger.warning(f"No products found or unexpected response structure for query '{search_query}' on {shop_url}. Response: {response_data}")
-            return []
+            logger.warning(f"No products found or unexpected response structure for query '{{search_query}}' on {{shop_url}}. Response: {{response_data}}")
+            # Return empty products list and pageInfo dictionary in case of no data or error
+            return {"products": [], "pageInfo": {"hasNextPage": False, "hasPreviousPage": False, "startCursor": None, "endCursor": None}}
     except Exception as e:
-        logger.error(f"Error searching products on {shop_url} with query '{search_query}': {e}", exc_info=True)
-        return []
+        logger.error(f"Error searching products on {{shop_url}} with query '{{search_query}}': {{e}}", exc_info=True)
+        # Return empty products list and pageInfo dictionary in case of an exception
+        return {"products": [], "pageInfo": {"hasNextPage": False, "hasPreviousPage": False, "startCursor": None, "endCursor": None}}
 
 def get_draft_order_details(shop_url: str, access_token: str, draft_order_gid: str):
     """

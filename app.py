@@ -295,25 +295,30 @@ def product_search_page():
             if search_term:
                 products_data = shopify_client.search_products(shop_url, access_token, search_term)
                 # Simplify product data for template
-                for edge in products_data:
-                    node = edge.get('node', {})
-                    variants = []
-                    if node.get('variants') and node['variants'].get('edges'):
-                        for var_edge in node['variants']['edges']:
-                            var_node = var_edge.get('node', {})
-                            variants.append({
-                                'id': var_node.get('id'),
-                                'title': var_node.get('title'),
-                                'price': var_node.get('price'),
-                                'image_url': var_node.get('image', {}).get('url') if var_node.get('image') else None
+                logger.info(f"Products data received: {products_data}") 
+                if products_data: # Add this check
+                    for edge in products_data.get('products'):
+                        if edge: # Add this check to ensure edge is not None
+                            node = edge.get('node', {})
+                            variants = []
+                            if node.get('variants') and node['variants'].get('edges'):
+                                for var_edge in node['variants']['edges']:
+                                    var_node = var_edge.get('node', {})
+                                    variants.append({
+                                        'id': var_node.get('id'),
+                                        'title': var_node.get('title'),
+                                        'price': var_node.get('price'),
+                                        'image_url': var_node.get('image', {}).get('url') if var_node.get('image') else None
+                                    })
+                            products.append({
+                                'id': node.get('id'),
+                                'title': node.get('title'),
+                                'descriptionHtml': node.get('descriptionHtml'),
+                                'featuredImage_url': node.get('featuredImage', {}).get('url') if node.get('featuredImage') else None,
+                                'variants': variants
                             })
-                    products.append({
-                        'id': node.get('id'),
-                        'title': node.get('title'),
-                        'descriptionHtml': node.get('descriptionHtml'),
-                        'featuredImage_url': node.get('featuredImage', {}).get('url') if node.get('featuredImage') else None,
-                        'variants': variants
-                    })
+                else:
+                    logger.info(f"No products found or error in search for term: '{search_term}'")
             else:
                 logger.info("Empty search term provided.")
         

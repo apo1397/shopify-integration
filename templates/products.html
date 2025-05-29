@@ -105,35 +105,60 @@
 
         {% if products %}
             <h2>Search Results for "{{ search_term }}"</h2>
-            <div class="product-grid">
+            <div class="product-grid"> <!-- This will now be a grid of variant cards -->
                 {% for product in products %}
-                <div class="product-card">
-                    {% if product.featuredImage_url %}
-                        <img src="{{ product.featuredImage_url }}" alt="{{ product.title }}">
-                    {% endif %}
-                    <h3>{{ product.title }}</h3>
-                    {% if product.onlineStoreUrl %}
-                        <p><a href="{{ product.onlineStoreUrl }}" target="_blank">View on Store</a></p>
-                    {% endif %}
-                    <p>{{ product.descriptionHtml|safe }}</p>
                     {% if product.variants %}
-                        <form method="POST" action="{{ url_for('product_search_page') }}" class="variants">
-                             <input type="hidden" name="previous_search_term" value="{{ search_term or '' }}"> <!-- To retain search term -->
-                             <input type="hidden" name="product_title" value="{{ product.title }}">
-                            <select name="variant_id">
-                                {% for variant in product.variants %}
-                                    <option value="{{ variant.id }}">{{ variant.title }} - ${{ "%.2f"|format(variant.price|float) }}</option>
-                                {% endfor %}
-                            </select>
-                            <input type="number" name="quantity" value="1" min="1" style="margin-bottom: 10px;">
-                             <input type="hidden" name="variant_title" value="{{ product.variants[0].title if product.variants else '' }}"> <!-- Simplified: takes first variant title -->
-                             <input type="hidden" name="price" value="{{ product.variants[0].price if product.variants else '0.00' }}"> <!-- Simplified: takes first variant price -->
-                            <button type="submit" name="add_to_cart" value="1">Add to Cart</button>
-                        </form>
+                        {% for variant in product.variants %}
+                        <div class="product-card"> <!-- Re-using product-card style for each variant -->
+                            <form method="POST" action="{{ url_for('product_search_page') }}" class="variants-form">
+                                <input type="hidden" name="previous_search_term" value="{{ search_term or '' }}">
+                                <input type="hidden" name="product_title" value="{{ product.title }}">
+                                <input type="hidden" name="variant_id" value="{{ variant.id }}">
+                                <input type="hidden" name="variant_title" value="{{ variant.title }}">
+                                <input type="hidden" name="price" value="{{ variant.price }}">
+                                
+                                {% if variant.image_url %}
+                                    <img src="{{ variant.image_url }}" alt="{{ product.title }} - {{ variant.title }}" style="max-width: 100%; height: auto; border-radius: 4px; margin-bottom: 10px;">
+                                {% elif product.featuredImage_url %}
+                                    <img src="{{ product.featuredImage_url }}" alt="{{ product.title }}" style="max-width: 100%; height: auto; border-radius: 4px; margin-bottom: 10px;">
+                                {% endif %}
+                                
+                                <h3>{{ product.title }} - {{ variant.title }}</h3>
+                                <p>Price: ${{ "%.2f"|format(variant.price|float) }}</p>
+                                
+                                <label for="quantity_{{ variant.id }}" style="font-size: 0.9em; display:block; margin-bottom: 5px;">Quantity:</label>
+                                <input type="number" id="quantity_{{ variant.id }}" name="quantity" value="1" min="1" style="width: 60px; padding: 5px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; text-align: center;">
+                                
+                                <button type="submit" name="add_to_cart" value="1" style="background-color: #5c6ac4; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer; width: 100%;">Add to Cart</button>
+                            </form>
+                        </div>
+                        {% endfor %}
                     {% else %}
-                        <p>No variants available for this product.</p>
+                        <!-- Display product card if no variants (optional, or skip if only variants should be cards) -->
+                        <div class="product-card">
+                            {% if product.featuredImage_url %}
+                                <img src="{{ product.featuredImage_url }}" alt="{{ product.title }}">
+                            {% endif %}
+                            <h3>{{ product.title }}</h3>
+                            {% if product.onlineStoreUrl %}
+                                <p><a href="{{ product.onlineStoreUrl }}" target="_blank">View on Store</a></p>
+                            {% endif %}
+                            <p>{{ product.descriptionHtml|safe }}</p>
+                            <p>No variants available for this product. Cannot add to cart directly.</p> 
+                            <!-- Or, if you want to allow adding the product itself if no variants -->
+                            <!-- 
+                            <form method="POST" action="{{ url_for('product_search_page') }}">
+                                <input type="hidden" name="previous_search_term" value="{{ search_term or '' }}">
+                                <input type="hidden" name="product_id" value="{{ product.id }}"> 
+                                <input type="hidden" name="product_title" value="{{ product.title }}">
+                                <input type="hidden" name="price" value="{{ product.price_if_no_variants }}"> 
+                                <label for="quantity_{{ product.id }}">Quantity:</label>
+                                <input type="number" id="quantity_{{ product.id }}" name="quantity" value="1" min="1">
+                                <button type="submit" name="add_to_cart" value="1">Add to Cart</button>
+                            </form>
+                            -->
+                        </div>
                     {% endif %}
-                </div>
                 {% endfor %}
             </div>
         {% elif search_term %}
