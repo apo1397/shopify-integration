@@ -419,31 +419,43 @@ def create_order(): # Renamed function
         return f"Error: Missing mandatory address fields: {', '.join(missing_fields)}. Please go back and fill them.", 400
 
     line_items_input = []
+    total_cart_value = 0.0
     for item_id, item_details in cart.items():
         line_items_input.append({
             "variantId": item_details['variant_id'],
             "quantity": item_details['quantity']
         })
-    
+        try:
+            item_price = float(item_details.get('price', 0.0))
+            total_cart_value += item_price * item_details['quantity']
+        except ValueError:
+            logger.warning(f"Could not convert price to float for item {item_id}. Price: {item_details.get('price')}")
+            # Decide how to handle this: skip item, assume 0, or raise error
+
+    logger.info(f"Total cart value calculated: {total_cart_value}")
+
+    # Calculate the discount value: total cart value - 1
+    # Ensure discount value is not negative if total_cart_value is less than 1
+    discount_value = round(max(0, (total_cart_value - 1/1.18)), 2)
+    logger.info(f"Calculated discount value: {discount_value}")
+
     draft_order_input = {
         "email": email,
         "lineItems": line_items_input,
         "shippingAddress": shipping_address_input,
-        "note": "Order placed via Hypothesis app with 100% discount.",
+        "note": f"Order placed via Hypothesis app. Discounted by ${discount_value:.2f}.",
         "customAttributes": [
             {"key": "OrderSource", "value": "HypothesisApp"},
-            {"key": "PromotionDetails", "value": "100% Discount Applied"}
+            {"key": "PromotionDetails", "value": f"Fixed Amount Discount: ${discount_value:.2f}"}
         ],
         "appliedDiscount": {
-            "valueType": "PERCENTAGE",
-            "value": 100.0,
-            "title": "100% Hypothesis App Discount"
+            "valueType": "FIXED_AMOUNT",
+            "value": discount_value,
+            "title": f"Hypothesis App Discount (${discount_value:.2f})"
         },
-        "useCustomerDefaultAddress": False # We are providing a shipping address
-        # financialStatus will be determined upon completion
+        "useCustomerDefaultAddress": False
     }
 
-    # Add tags to draft_order_input if available
     if tags_list:
         draft_order_input["tags"] = tags_list
 
@@ -452,6 +464,8 @@ def create_order(): # Renamed function
       draftOrderCreate(input: $input) {
         draftOrder {
           id
+          # Consider fetching invoiceUrl or order.id after completion for status page
+          invoiceUrl 
         }
         userErrors {
           field
